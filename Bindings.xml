@@ -1,0 +1,7 @@
+<Bindings>
+    <Binding name="CLICK WicksConjuresWaterButton:LeftButton" header="WICKSCONJURES" category="ADDONS"/>
+    <Binding name="CLICK WicksConjuresFoodButton:LeftButton" category="ADDONS"/>
+    <Binding name="WICKSCONJURES_TOGGLE" category="ADDONS">
+        if WicksConjuresAndThings_Toggle then WicksConjuresAndThings_Toggle() end
+    </Binding>
+</Bindings>
