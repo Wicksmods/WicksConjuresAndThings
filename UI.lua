@@ -41,8 +41,17 @@ local function rationLines(tt)
         end
     end
     tt:AddLine(" ")
-    local spell = ns.Conjure:SpellFor("water")
-    tt:AddLine(spell and ("Click to cast " .. spell) or "You have not learned a conjure yet.", 0.6, 0.6, 0.6, true)
+    local water = ns.Conjure:SpellFor("water")
+    local food  = ns.Conjure:SpellFor("food")
+    if water then tt:AddLine("Click to cast " .. water, 0.6, 0.6, 0.6, true) end
+    if food then
+        tt:AddLine("Right-click to cast " .. food, 0.6, 0.6, 0.6, true)
+    elseif water then
+        tt:AddLine("Right-click conjures food once you have learned it.", 0.6, 0.6, 0.6, true)
+    end
+    if not water and not food then
+        tt:AddLine("You have not learned a conjure yet.", 0.6, 0.6, 0.6, true)
+    end
 end
 
 local function gemLines(tt)
@@ -119,7 +128,7 @@ function UI:BuildStrip()
     rations:SetPoint("TOPLEFT", PAD, -2)
     rations:SetSize(RATION_W, STRIP_H - 4)
     rations:RegisterForClicks("AnyUp", "AnyDown")
-    ns.Conjure:RegisterButton("water", rations)
+    ns.Conjure:RegisterButton("water", rations, "food")
     rations.icon = rations:CreateTexture(nil, "ARTWORK")
     rations.icon:SetSize(16, 16); rations.icon:SetPoint("LEFT", 2, 0)
     rations.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)

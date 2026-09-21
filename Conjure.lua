@@ -120,10 +120,16 @@ end
 
 local buttons = {}
 
-function Conjure:RegisterButton(key, b)
+-- A button can carry two spells: the strip's rations segment is one
+-- control for both halves of the job, so left conjures drink and right
+-- conjures food rather than the segment quietly only ever doing one.
+function Conjure:RegisterButton(key, b, altKey)
     buttons[key] = buttons[key] or {}
     table.insert(buttons[key], b)
-    b:SetAttribute("type", "spell")
+    b._wickAltKey = altKey
+    b:SetAttribute("type1", "spell")
+    if altKey then b:SetAttribute("type2", "spell") end
+    if not altKey then b:SetAttribute("type", "spell") end
     self:UpdateButtons()
 end
 
@@ -136,6 +142,10 @@ function Conjure:UpdateButtons()
         self.spell[key] = spell
         for _, b in ipairs(list) do
             b:SetAttribute("spell", spell or "")
+            b:SetAttribute("spell1", spell or "")
+            if b._wickAltKey then
+                b:SetAttribute("spell2", self:SpellFor(b._wickAltKey) or "")
+            end
         end
     end
     if ns.UI and ns.UI.Refresh then ns.UI:Refresh() end
