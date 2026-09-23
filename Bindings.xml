@@ -4,4 +4,7 @@
     <Binding name="WICKSCONJURES_TOGGLE" category="ADDONS">
         if WicksConjuresAndThings_Toggle then WicksConjuresAndThings_Toggle() end
     </Binding>
+    <Binding name="WICKSCONJURES_PORTALS" category="ADDONS">
+        if WicksConjuresAndThings_Portals then WicksConjuresAndThings_Portals() end
+    </Binding>
 </Bindings>

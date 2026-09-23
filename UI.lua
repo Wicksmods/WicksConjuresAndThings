@@ -272,6 +272,9 @@ function UI:Build()
     local optBtn = Chrome:Button(ct, "Options", 70, 20)
     optBtn:SetPoint("RIGHT", kitBtn, "LEFT", -6, 0)
     optBtn:SetScript("OnClick", function() ns.A:OpenOptions() end)
+    local portalBtn = Chrome:Button(ct, "Portals", 70, 20)
+    portalBtn:SetPoint("BOTTOMLEFT", 0, 0)
+    portalBtn:SetScript("OnClick", function() UI:TogglePortals() end)
     local stripBtn = Chrome:Button(ct, "Strip", 70, 20)
     stripBtn:SetPoint("RIGHT", optBtn, "LEFT", -6, 0)
     stripBtn:SetScript("OnClick", function()
@@ -282,6 +285,149 @@ function UI:Build()
     p:SetScript("OnShow", function() UI:Refresh() end)
     R:OnChange(function() if p:IsShown() then UI:Refresh() end end)
     return p
+end
+
+-- ============================================================
+-- Portals
+-- ============================================================
+--
+-- A row per destination, left-click to teleport and right-click for the
+-- portal, so one row is one place rather than two entries that differ
+-- by a word. Rows are pooled and retargeted, since learning a city
+-- mid-session reorders the list.
+
+local ROW_H = 22
+
+local function portalLines(tt, dest)
+    local row = ns.Portals:Find(dest)
+    if not row then return end
+    tt:AddLine(row.dest, 1, 1, 1)
+    for _, kind in ipairs({ "teleport", "portal" }) do
+        local spell = row[kind]
+        if spell then
+            local runes = ns.Portals:Runes(kind)
+            local c = runes > 0 and C.text or RED
+            tt:AddDoubleLine(spell.name, ("%d rune%s"):format(runes, runes == 1 and "" or "s"),
+                0.83, 0.78, 0.63, c[1], c[2], c[3])
+        end
+    end
+    tt:AddLine(" ")
+    if row.teleport then tt:AddLine("Click to teleport", 0.6, 0.6, 0.6, true) end
+    if row.portal then
+        tt:AddLine("Right-click to open a portal", 0.6, 0.6, 0.6, true)
+    else
+        tt:AddLine("Portals are learned at a higher level.", 0.6, 0.6, 0.6, true)
+    end
+end
+
+function UI:BuildPortals()
+    if self.portals then return self.portals end
+    local db = ns.db and ns.db.profile
+    local p = Chrome:NewPanel("WicksConjuresPortals", {
+        title = "Wick's Portals", width = 260, height = 240,
+        closable = true, strata = "MEDIUM", db = db and db.portalWindow,
+    })
+    self.portals = p
+    local ct = p.content
+
+    p.runes = Chrome:Text(ct, 11, C.muted)
+    p.runes:SetPoint("TOPLEFT", 0, 0)
+    p.rowTop = -20
+    p.rows = {}
+    p.empty = Chrome:Text(ct, 11, C.muted)
+    p.empty:SetPoint("TOPLEFT", 0, p.rowTop)
+    p.empty:SetWidth(220)
+    p.empty:SetJustifyH("LEFT")
+
+    p:SetScript("OnShow", function() UI:RefreshPortals() end)
+    R:OnChange(function() if p:IsShown() then UI:RefreshPortals() end end)
+    return p
+end
+
+function UI:TogglePortals()
+    self:BuildPortals()
+    self.portals:Toggle()
+end
+
+function UI:RefreshPortals()
+    local p = self.portals
+    if not p or not p:IsShown() then return end
+    self.portalsPending = false
+    local list = ns.Portals:List()
+
+    p.runes:SetText(("Teleport runes %d   Portal runes %d")
+        :format(ns.Portals:Runes("teleport"), ns.Portals:Runes("portal")))
+
+    p.empty:SetShown(#list == 0)
+    if #list == 0 then
+        p.empty:SetText(ns.isMage
+            and "No teleports learned yet. A mage picks the first up at level 20."
+            or "Teleports and portals are a mage thing.")
+    end
+
+    local y = p.rowTop
+    for i, row in ipairs(list) do
+        local r = p.rows[i]
+        if not r then
+            -- A row is a secure button, and a secure button's attributes
+            -- are locked for the duration of a fight. Neither a teleport
+            -- nor a portal is castable in combat, so a row that cannot
+            -- be built yet loses nothing by waiting for the fight to
+            -- end; building it anyway throws.
+            if InCombatLockdown() then
+                UI.portalsPending = true
+                break
+            end
+            r = CreateFrame("Button", nil, p.content, "SecureActionButtonTemplate")
+            r:SetSize(220, ROW_H)
+            r:RegisterForClicks("AnyUp", "AnyDown")
+            r.icon = r:CreateTexture(nil, "ARTWORK")
+            r.icon:SetSize(16, 16); r.icon:SetPoint("LEFT", 0, 0)
+            r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            r.name = Chrome:Text(r, 11)
+            r.name:SetPoint("LEFT", r.icon, "RIGHT", 8, 0)
+            r.right = Chrome:Text(r, 10, C.muted)
+            r.right:SetPoint("RIGHT", 0, 0)
+            r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints()
+            r.hl:SetColorTexture(1, 1, 1, 0.10)
+            r:SetScript("OnEnter", function(sf)
+                GameTooltip:SetOwner(sf, "ANCHOR_RIGHT")
+                portalLines(GameTooltip, sf.dest)
+                GameTooltip:Show()
+            end)
+            r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            p.rows[i] = r
+            ns.Portals:RegisterButton(row.dest, r)
+        end
+        -- Pooled, so a row can be pointed somewhere else on a redraw.
+        if r.dest ~= row.dest then
+            r.dest = row.dest
+            ns.Portals:Retarget(r, row.dest)
+        end
+
+        local art = (row.teleport and row.teleport.icon) or (row.portal and row.portal.icon)
+        r.icon:SetTexture(art or BLANK)
+        r.name:SetText(row.dest)
+
+        -- What this row can do right now. A destination whose rune has
+        -- run out is dimmed, because that is what stops the cast.
+        local tele = row.teleport ~= nil and ns.Portals:HasRune("teleport")
+        local port = row.portal ~= nil and ns.Portals:HasRune("portal")
+        local parts = {}
+        if row.teleport then parts[#parts + 1] = tele and "tele" or "|cff7f5555tele|r" end
+        if row.portal then parts[#parts + 1] = port and "portal" or "|cff7f5555portal|r" end
+        r.right:SetText(table.concat(parts, "  "))
+        local live = tele or port
+        r.icon:SetDesaturated(not live)
+        r.icon:SetAlpha(live and 1 or 0.4)
+        tint(r.name, live and C.text or C.muted)
+
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 0, y)
+        r:Show()
+        y = y - ROW_H
+    end
+    for i = #list + 1, #p.rows do p.rows[i]:Hide() end
 end
 
 function UI:Init()

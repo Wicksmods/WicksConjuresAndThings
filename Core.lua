@@ -45,6 +45,7 @@ local PROFILE_DEFAULTS = {
     stripLocked = true,
     strip       = {},
     window      = {},
+    portalWindow = {},
     kitWindow   = {},
 }
 
@@ -112,6 +113,14 @@ function A:OnInitialize()
                 return ns.Conjure:Summary().gems > 0
             end },
             { label = "Arcane powder", item = "Arcane Powder", min = 5 },
+            -- Runes only matter once there is something to spend them
+            -- on. A mage below level 20 has no teleports and one below
+            -- 40 has no portals, so these rows appear as the spells do
+            -- rather than sitting there grey for twenty levels.
+            { label = "Teleport runes", when = function() return ns.Portals:Knows("teleport") end,
+              check = function() return ns.Portals:Runes("teleport") > 0 end },
+            { label = "Portal runes", when = function() return ns.Portals:Knows("portal") end,
+              check = function() return ns.Portals:Runes("portal") > 0 end },
         },
     })
 end
@@ -123,17 +132,20 @@ function A:OnEnable()
         self:Print("loaded. /wcj for rations and reagents, /wcj kit for talents and checklist.")
     end
     if ns.Conjure and ns.Conjure.Init then ns.Conjure:Init() end
+    if ns.Portals and ns.Portals.Init then ns.Portals:Init() end
     if ns.UI and ns.UI.Init then ns.UI:Init() end
     if self.cooldowns then self.cooldowns:Init() end
 
     self:RegisterLauncher({
         onClick = function(_, button)
             if button == "RightButton" then self.kit:Toggle()
+            elseif button == "MiddleButton" then ns.UI:TogglePortals()
             else ns.UI:Toggle() end
         end,
         tooltip = function(tt)
             tt:AddLine(Core.Chrome:TitleMarkup("Wick's Conjures and Things"))
             tt:AddLine("Left-click: rations   Right-click: talents and checklist", 0.5, 0.5, 0.5)
+            tt:AddLine("Middle-click: portals", 0.5, 0.5, 0.5)
         end,
     })
 
@@ -150,6 +162,7 @@ function A:OnEnable()
         y = O:Note(page, ("Rations read as low under %d. Change it with /wcj low <count>."):format(db.lowRations or 20), y)
         y = O:Button(page, "Open panel", function() ns.UI:Toggle() end, y, 100)
         y = O:Button(page, "Open kit", function() addon.kit:Toggle() end, y, 100)
+        y = O:Button(page, "Open portals", function() ns.UI:TogglePortals() end, y, 100)
         if addon.cooldowns then y = addon.cooldowns:OptionRow(page, y - 6) end
         y = O:ProfileSection(page, addon, y - 8)
     end)
@@ -160,7 +173,9 @@ BINDING_HEADER_WICKSCONJURES = "Wick's Conjures and Things"
 _G["BINDING_NAME_CLICK WicksConjuresWaterButton:LeftButton"] = "Conjure water"
 _G["BINDING_NAME_CLICK WicksConjuresFoodButton:LeftButton"] = "Conjure food"
 BINDING_NAME_WICKSCONJURES_TOGGLE = "Toggle rations panel"
+BINDING_NAME_WICKSCONJURES_PORTALS = "Toggle portals panel"
 function WicksConjuresAndThings_Toggle() if ns.UI then ns.UI:Toggle() end end
+function WicksConjuresAndThings_Portals() if ns.UI then ns.UI:TogglePortals() end end
 
 -- ============================================================
 -- Slash command
@@ -171,6 +186,7 @@ A:RegisterSlash(function(_, msg)
     local db = A.db.profile
     if lower == "" or lower == "show" or lower == "toggle" then ns.UI:Toggle() return end
     if lower == "kit" or lower == "talents" or lower == "checklist" then A.kit:Toggle() return end
+    if lower == "portals" or lower == "portal" or lower == "tp" then ns.UI:TogglePortals() return end
     if lower == "cd" or lower:match("^cd%s") then return A.cooldowns:Command(msg:match("^%a+%s*(.*)$")) end
     if lower == "options" or lower == "config" then A:OpenOptions() return end
     if lower == "strip" then
@@ -195,10 +211,20 @@ A:RegisterSlash(function(_, msg)
         for _, r in ipairs(ns.Conjure:Reagents()) do
             A:Print(("%s: %d"):format(r.label, r.count))
         end
+        local dests = ns.Portals:List()
+        A:Print(("teleports: %d destination%s, %d teleport rune%s, %d portal rune%s"):format(
+            #dests, #dests == 1 and "" or "s",
+            ns.Portals:Runes("teleport"), ns.Portals:Runes("teleport") == 1 and "" or "s",
+            ns.Portals:Runes("portal"), ns.Portals:Runes("portal") == 1 and "" or "s"))
+        for _, row in ipairs(dests) do
+            A:Print(("  %s: %s%s"):format(row.dest,
+                row.teleport and "teleport" or "-",
+                row.portal and " + portal" or ""))
+        end
         A:Print(("spells: water %s, food %s, gem %s"):format(
             tostring(ns.Conjure:SpellFor("water")), tostring(ns.Conjure:SpellFor("food")),
             tostring(ns.Conjure:BestGem())))
         return
     end
-    A:Print("commands: show | strip | lock | unlock | kit | cd | options | low <count> | status")
+    A:Print("commands: show | portals | strip | lock | unlock | kit | cd | options | low <count> | status")
 end, "/wcj", "/wconjures")
