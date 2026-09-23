@@ -11,6 +11,7 @@
 -- same IDs as Classic, but they all carry the conjured prefix.
 
 local ADDON, ns = ...
+if not WickCore then return end   -- said once in Core.lua
 local Core = WickCore
 local D, R = Core.Dialect, Core.Restrict
 

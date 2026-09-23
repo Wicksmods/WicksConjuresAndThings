@@ -3,7 +3,7 @@
 ## Notes: Mage loadout kit for World of Warcraft: Forever. Rations and reagents at a glance, one-key conjuring, talents, pre-pull checklist, racials.
 ## Author: Wick
 ## Version: 0.1.0
-## Dependencies: WickCore
+## OptionalDeps: WickCore
 ## SavedVariables: WicksConjuresSaved
 ## X-Website: https://wicksmods.com
 ## X-WickCore: WickCore-1.0
